@@ -75,7 +75,7 @@ function InitMutator(string Options, out string ErrorMessage)
 		BaseTraderMusic.AddItem(Info);
 	}
 		
-	if( ConfigVer <= 0 )
+	if( ConfigVer != 1 )
 	{
 		WaveMusic.Length = KFMI.ActionMusicTracks.Length;
 		TraderMusic.Length = KFMI.AmbientMusicTracks.Length;
@@ -203,8 +203,6 @@ function SetupExtendedGRI()
 	EGRI = WorldInfo.Game.Spawn(class'MusicGRI');
 	if( EGRI != None )
 	{
-		EGRI.GRI = KFGameReplicationInfo(WorldInfo.GRI);
-		EGRI.KFGameClass = class<KFGameInfo>(WorldInfo.GRI.GameClass);
 		if( WorldInfo.NetMode==NM_StandAlone )
 			EGRI.PlayNewMusicTrack(false, true);
 	}

@@ -3,16 +3,9 @@ class MusicGRI extends ReplicationInfo;
 var MusicTrackStruct CurrentMusicTrack;
 var AudioComponent MusicCompCue;
 var KFGameReplicationInfo GRI;
-var class<KFGameInfo> KFGameClass;
 var bool bWaveIsActive;
 var byte UpdateCounter, TimerCount;
 var KFMusicTrackInfo CurrentTrackInfo;
-
-replication
-{
-	if( true )
-		GRI, KFGameClass;
-}
 
 simulated function UpdateMusicTrack( KFMusicTrackInfo NextMusicTrackInfo, bool bPlayStandardTrack )
 {
@@ -46,7 +39,7 @@ simulated function UpdateMusicTrack( KFMusicTrackInfo NextMusicTrackInfo, bool b
 	CurrentTrack.SoundClass = 'Music';
 	Music.TheSoundCue = CurrentTrack;
 	Music.FadeInTime = CustomInfo.FadeInTime;
-	Music.FadeOutTime = 0.5f;
+	Music.FadeOutTime = 2.f;
 
 	PlaySoundTrack(Music);
 	GRI.bPendingMusicTrackChange = false;
@@ -72,6 +65,8 @@ simulated function ForceStopAkMusic()
 
 simulated function ForceStopMusic(optional float FadeOutTime=1.0f)
 {
+	ClearTimer('SelectNewTrack');
+	
 	if( MusicCompCue!=None )
 	{
 		MusicCompCue.FadeOut(FadeOutTime,0.0);
@@ -99,12 +94,17 @@ simulated function PlaySoundTrack(MusicTrackStruct Music)
 	A = WorldInfo.CreateAudioComponent(Music.TheSoundCue,false,false,false,,false);
 	if( A!=None )
 	{
+		A.SoundCue.bPitchShiftWithTimeDilation = false;
+		
+		A.OcclusionCheckInterval = 0.f;
 		A.bAutoDestroy = true;
 		A.bShouldRemainActiveIfDropped = true;
 		A.bIsMusic = true;
 		A.bAutoPlay = Music.bAutoPlay;
 		A.bIgnoreForFlushing = Music.bPersistentAcrossLevels;
 		A.FadeIn( Music.FadeInTime, Music.FadeInVolumeLevel );
+		
+		SetTimer((A.SoundCue.Duration - (Music.FadeOutTime + Music.FadeInTime)) / 1.5, false, nameof(SelectNewTrack));
 	}
 
 	MusicCompCue = A;
@@ -128,9 +128,9 @@ simulated function PlayNewMusicTrack( optional bool bGameStateChanged, optional 
     {
         if( bPlayActionTrack )
         {
-            if( KFGameClass.default.ActionMusicDelay > 0 )
+            if( class'KFGameInfo'.default.ActionMusicDelay > 0 )
             {
-                SetTimer( KFGameClass.default.ActionMusicDelay, false, nameof(PlayNewMusicTrack) );
+                SetTimer( class'KFGameInfo'.default.ActionMusicDelay, false, nameof(PlayNewMusicTrack) );
                 return;
             }
         }
@@ -138,7 +138,7 @@ simulated function PlayNewMusicTrack( optional bool bGameStateChanged, optional 
     else if( GRI.CurrentMusicTrackInfo != none )
         bLoop = GRI.CurrentMusicTrackInfo.bLoop;
 
-    if( bLoop || GRI.IsFinalWave() )
+    if( bLoop )
         NextMusicTrackInfo = GRI.CurrentMusicTrackInfo;
     else
     {
@@ -155,6 +155,13 @@ simulated function Tick(float DT)
 {
 	if ( WorldInfo.NetMode == NM_DedicatedServer )
 		return;
+		
+	if( GRI == None )
+	{
+		GRI = KFGameReplicationInfo(WorldInfo.GRI);
+		if( GRI == None )
+			return;
+	}
 		
 	// I hate this so much but it's the only way to stop the original GRI from spamming songs
 	if( MusicCompCue != None )
@@ -184,6 +191,11 @@ simulated function Tick(float DT)
 				ForceStopMusic(class<KFGameInfo>(GRI.GameClass).default.ActionMusicDelay);
 		}
 	}
+}
+
+simulated function SelectNewTrack()
+{
+	PlayNewMusicTrack( false, !bWaveIsActive );
 }
 
 simulated function ForceStartMusic()
